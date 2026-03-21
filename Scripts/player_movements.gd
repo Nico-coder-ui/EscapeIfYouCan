@@ -35,6 +35,6 @@ func _physics_process(delta):
 		velocity.x = 0
 		velocity.z = 0
 		if anim.current_animation != "":
-			anim.stop()
+			anim.play("RESET")
 
 	move_and_slide()

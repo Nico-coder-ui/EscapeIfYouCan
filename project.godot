@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Escape If You Can"
-run/main_scene="uid://cgcdcgkeo055h"
+run/main_scene="uid://b0nvo4lk7c1kx"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 

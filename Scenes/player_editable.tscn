@@ -136,9 +136,14 @@ bind/32/name = &"mixamorig_RightToe_End"
 bind/32/bone = -1
 bind/32/pose = Transform3D(-5.665207, 2.097038, 99.81674, 99.835594, -0.73920906, 5.68122, 0.8569448, 99.975235, -2.0518377, -30.263657, -39.789165, 1.9603964)
 
+[sub_resource type="Animation" id="Animation_si6wk"]
+resource_name = "RESET"
+loop_mode = 2
+
 [sub_resource type="Animation" id="Animation_6ytfo"]
 resource_name = "Walk"
 length = 1.0666667
+loop_mode = 1
 tracks/0/type = "position_3d"
 tracks/0/imported = true
 tracks/0/enabled = true
@@ -422,6 +427,7 @@ tracks/39/keys = PackedFloat32Array(0, 1, 0.29310086, 0.002859433, -0.0023192717
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_ta0uh"]
 _data = {
+&"RESET": SubResource("Animation_si6wk"),
 &"Walk": SubResource("Animation_6ytfo")
 }
 
