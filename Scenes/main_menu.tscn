@@ -1,0 +1,89 @@
+[gd_scene format=3 uid="uid://dh8k2m5n7p3q1"]
+
+[ext_resource type="Script" uid="uid://diynho1cokl4j" path="res://Scripts/main_menu.gd" id="1_menu"]
+
+[node name="MainMenu" type="Control" unique_id=753607594]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="." unique_id=2096101189]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.02, 0.05, 1)
+
+[node name="VignetteOverlay" type="ColorRect" parent="." unique_id=957778293]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1330809915]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -150.0
+offset_right = 200.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 30
+
+[node name="Title" type="Label" parent="VBoxContainer" unique_id=1009788792]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.1, 0.1, 1)
+theme_override_colors/font_shadow_color = Color(0.3, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 3
+theme_override_font_sizes/font_size = 64
+text = "ESCAPE IF YOU CAN"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="VBoxContainer" unique_id=659942470]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="PlayButton" type="Button" parent="VBoxContainer" unique_id=1483450002]
+custom_minimum_size = Vector2(300, 60)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.3, 0.3, 1)
+theme_override_colors/font_hover_color = Color(0.9, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 28
+text = "JOUER"
+flat = true
+
+[node name="QuitButton" type="Button" parent="VBoxContainer" unique_id=527205022]
+custom_minimum_size = Vector2(300, 60)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.3, 0.3, 1)
+theme_override_colors/font_hover_color = Color(0.9, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 28
+text = "QUITTER"
+flat = true
+
+[node name="FlickerTimer" type="Timer" parent="." unique_id=1712251846]
+wait_time = 0.1
+autostart = true
+
+[node name="AmbientTimer" type="Timer" parent="." unique_id=1619649416]
+wait_time = 3.0
+autostart = true

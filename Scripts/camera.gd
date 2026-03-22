@@ -8,11 +8,11 @@ func _ready():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _input(event):
+	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
+		return
+
 	if event is InputEventMouseMotion:
 		get_parent().rotate_y(deg_to_rad(-event.relative.x * mouse_sensitivity))
-		
+
 		rotation.x -= deg_to_rad(event.relative.y * mouse_sensitivity)
 		rotation.x = clamp(rotation.x, deg_to_rad(pitch_min), deg_to_rad(pitch_max))
-	
-	if event.is_action_pressed("ui_cancel"):
-		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
