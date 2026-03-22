@@ -32,11 +32,24 @@ const PAGES_COUNT: int = 5
 const PAGE_ROTATION_Y: float = PI / 2.0
 const PAGE_SCALE: Vector3 = Vector3(2, 2, 2)
 
+const MONSTER_SPAWN_POS: Vector3 = Vector3(-1.673, 3.715, -8.35)
+const MONSTER_ROTATION_Y: float = deg_to_rad(0.0)
+const MONSTER_SCALE: Vector3 = Vector3(0.6, 0.6, 0.6)
+const MONSTER_MOVE_DISTANCE: float = 1.5
+const MONSTER_COLLISION_LAYER: int = 3
+
 var player: CharacterBody3D
 var camera: Camera3D
 var raycast: RayCast3D
 var book_node: Node3D
 var pages: Array[Node3D] = []
+
+var monster: Node3D = null
+var monster_timer: Timer
+var monster_area: Area3D
+var is_dead: bool = false
+var monster_visible_timer: float = 0.0
+var monster_was_visible: bool = false
 
 var ui_layer: CanvasLayer
 var interaction_indicator: TextureRect
@@ -48,6 +61,10 @@ var input_field: LineEdit
 var validate_button: Button
 var input_container: HBoxContainer
 var error_label: Label
+
+var death_overlay: ColorRect
+var death_label: Label
+var screamer: TextureRect
 
 var pause_menu: ColorRect
 var is_paused: bool = false
@@ -65,7 +82,9 @@ func _ready():
 	_select_riddles()
 	_setup_references()
 	_setup_ui()
+	_setup_death_screen()
 	_setup_pause_menu()
+	_setup_monster_timer()
 	_setup_book()
 	_spawn_pages()
 	_update_interactables()
@@ -242,6 +261,44 @@ func _setup_pause_menu():
 	quit_btn.pressed.connect(_on_quit_pressed)
 	vbox.add_child(quit_btn)
 
+func _setup_death_screen():
+	screamer = TextureRect.new()
+	screamer.name = "Screamer"
+	screamer.texture = load("res://Ressources/screamer.png")
+	screamer.visible = false
+	screamer.anchor_right = 1.0
+	screamer.anchor_bottom = 1.0
+	screamer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	ui_layer.add_child(screamer)
+
+	death_overlay = ColorRect.new()
+	death_overlay.name = "DeathOverlay"
+	death_overlay.color = Color(0, 0, 0, 1)
+	death_overlay.visible = false
+	death_overlay.anchor_right = 1.0
+	death_overlay.anchor_bottom = 1.0
+	ui_layer.add_child(death_overlay)
+
+	death_label = Label.new()
+	death_label.text = "Vous êtes mort d'une crise cardiaque..."
+	death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	death_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	death_label.anchor_left = 0.0
+	death_label.anchor_right = 1.0
+	death_label.anchor_top = 0.4
+	death_label.anchor_bottom = 0.6
+	death_label.add_theme_font_size_override("font_size", 48)
+	death_label.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1, 1))
+	death_overlay.add_child(death_label)
+
+func _setup_monster_timer():
+	monster_timer = Timer.new()
+	monster_timer.name = "MonsterTimer"
+	monster_timer.one_shot = false
+	monster_timer.wait_time = 3.0
+	monster_timer.timeout.connect(_on_monster_timer_timeout)
+	add_child(monster_timer)
+
 func _setup_book():
 	var neighborhood = get_parent().get_node_or_null("neighborhood")
 	if neighborhood:
@@ -366,6 +423,8 @@ func _close_outro():
 	is_text_displayed = false
 	is_showing_outro = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	monster_timer.stop()
+	_destroy_monster()
 	step_counter += 1
 	_game_completed()
 
@@ -429,6 +488,9 @@ func _show_text(text: String):
 		input_container.visible = true
 		input_field.grab_focus()
 
+	if not is_showing_outro:
+		monster_timer.start()
+
 func _on_password_submitted(_text: String):
 	_validate_password()
 
@@ -470,11 +532,15 @@ func _close_text_cancel():
 	text_overlay.visible = false
 	is_text_displayed = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	monster_timer.stop()
+	_check_monster_visibility()
 
 func _close_text_success():
 	text_overlay.visible = false
 	is_text_displayed = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	monster_timer.stop()
+	_check_monster_visibility()
 
 	step_counter += 1
 	_update_interactables()
@@ -499,3 +565,106 @@ func _game_completed():
 func _on_winning_zone_entered(body: Node3D):
 	if body == player or body.is_in_group("player"):
 		get_tree().quit()
+
+func _on_monster_timer_timeout():
+	if not is_text_displayed or is_dead:
+		return
+
+	if monster == null:
+		if randf() < 0.5:
+			_spawn_monster()
+			monster_timer.wait_time = 5.0
+	else:
+		if randf() < 0.7:
+			_move_monster()
+
+func _spawn_monster():
+	var monster_scene = load("res://Assets/Characters/Monster/monster.glb")
+	if not monster_scene:
+		return
+
+	monster = monster_scene.instantiate()
+	monster.name = "Monster"
+	monster.position = MONSTER_SPAWN_POS
+	monster.rotation.y = MONSTER_ROTATION_Y
+	monster.scale = MONSTER_SCALE
+	get_parent().add_child(monster)
+
+	var anim_player = monster.get_node_or_null("AnimationPlayer")
+	if anim_player:
+		if anim_player.has_animation("mixamo_com"):
+			anim_player.play("mixamo_com")
+			anim_player.get_animation("mixamo_com").loop_mode = Animation.LOOP_LINEAR
+
+	monster_area = Area3D.new()
+	monster_area.name = "MonsterArea"
+	monster_area.collision_layer = 1 << (MONSTER_COLLISION_LAYER - 1)
+	monster_area.collision_mask = 1
+
+	var collision = CollisionShape3D.new()
+	var shape = BoxShape3D.new()
+	shape.size = Vector3(1.0, 2.0, 2.0)
+	collision.shape = shape
+	collision.position.y = 1.0
+
+	monster_area.add_child(collision)
+	monster.add_child(monster_area)
+	monster_area.body_entered.connect(_on_monster_collision)
+
+func _move_monster():
+	if monster:
+		monster.position.z += MONSTER_MOVE_DISTANCE
+
+func _is_monster_in_camera_view() -> bool:
+	if not monster or not camera:
+		return false
+
+	var monster_pos = monster.global_position + Vector3(0, 1, 0)
+	var camera_pos = camera.global_position
+	var camera_forward = -camera.global_transform.basis.z
+
+	var to_monster = (monster_pos - camera_pos).normalized()
+	var dot = camera_forward.dot(to_monster)
+
+	return dot > 0.3
+
+func _check_monster_visibility():
+	if monster and _is_monster_in_camera_view():
+		await get_tree().create_timer(0.5).timeout
+		if monster and _is_monster_in_camera_view():
+			_destroy_monster()
+
+func _destroy_monster():
+	if monster:
+		monster.queue_free()
+		monster = null
+		monster_area = null
+		monster_timer.wait_time = 3.0
+
+func _on_monster_collision(body: Node3D):
+	if is_dead:
+		return
+
+	if body == player or body.is_in_group("player"):
+		_player_death()
+
+func _player_death():
+	is_dead = true
+	monster_timer.stop()
+
+	if is_text_displayed:
+		text_overlay.visible = false
+		is_text_displayed = false
+
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+	screamer.visible = true
+
+	await get_tree().create_timer(1.0).timeout
+
+	screamer.visible = false
+	death_overlay.visible = true
+
+	await get_tree().create_timer(2.0).timeout
+
+	get_tree().change_scene_to_file("res://Scenes/main_menu.tscn")

@@ -16,4 +16,5 @@ script = ExtResource("4_game")
 visible = false
 
 [node name="CharacterBody3D" parent="." unique_id=1005193515 instance=ExtResource("3_jv6wh")]
-transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, -0.65112674, 4.0860767, -7.9163423)
+transform = Transform3D(-2.1855694e-08, 0, -0.5, 0, 0.5, 0, 0.5, 0, -2.1855694e-08, 1.0421164, 3.979659, -7.9163423)
+visible = false
