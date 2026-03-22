@@ -3,8 +3,12 @@
 [ext_resource type="PackedScene" uid="uid://cgcdcgkeo055h" path="res://Scenes/neighborhood_editable.tscn" id="1_6l7je"]
 [ext_resource type="PackedScene" uid="uid://der2miuwxh7ge" path="res://Scenes/neighborhood_colliders_editable.tscn" id="2_jv6wh"]
 [ext_resource type="PackedScene" uid="uid://c5qvf4kttiqlh" path="res://Scenes/player_editable.tscn" id="3_jv6wh"]
+[ext_resource type="Script" uid="uid://c6qrsgb63wsv4" path="res://Scripts/game_manager.gd" id="4_game"]
 
 [node name="Node3D" type="Node3D" unique_id=1646561247]
+
+[node name="GameManager" type="Node" parent="." unique_id=1789411522]
+script = ExtResource("4_game")
 
 [node name="neighborhood" parent="." unique_id=1957477799 instance=ExtResource("1_6l7je")]
 

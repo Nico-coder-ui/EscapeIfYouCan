@@ -431,7 +431,7 @@ _data = {
 &"Walk": SubResource("Animation_6ytfo")
 }
 
-[node name="CharacterBody3D" type="CharacterBody3D" unique_id=1005193515]
+[node name="CharacterBody3D" type="CharacterBody3D" unique_id=1005193515 groups=["player"]]
 transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 0)
 script = ExtResource("2_si6wk")
 
