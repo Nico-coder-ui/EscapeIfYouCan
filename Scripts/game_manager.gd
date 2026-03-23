@@ -2,16 +2,18 @@ extends Node
 
 var step_counter: int = 0
 
-var intro_text: String = "Texte d'introduction - Le début de l'histoire..."
+var intro_text: String = "You’ve finally woken up! That took you long enough! Now we can start playing my latest game. You always slept so much when we were younger, well, when YOU were younger. Soon you’ll be able to sleep as much as you like. But first, LET’S PLAY!
+I’ve prepared several questions for you. You’ll have to find the papers, to solve them all to be able to leave, but be careful… Always look behind you when you’re reading the book… You never know…
+But don’t take too long. The more the candles go out, the more dangerous it could get. Well, I’m just saying!"
 
-var outro_text: String = "Texte de fin - Vous avez réussi à résoudre toutes les énigmes..."
+var outro_text: String = "Well done!!! You've completed my little game! I hope our friend didn't give you too much trouble! Now you're free to go, as usual."
 
 var possible_riddles: Array[Dictionary] = [
-	{"text": "Énigme 1 - Je suis toujours devant vous mais ne peut jamais être vu. Que suis-je ?", "password": "1"},
-	{"text": "Énigme 2 - Plus je sèche, plus je suis mouillée. Que suis-je ?", "password": "2"},
-	{"text": "Énigme 3 - J'ai des villes, mais pas de maisons. J'ai des forêts, mais pas d'arbres. J'ai de l'eau, mais pas de poissons. Que suis-je ?", "password": "3"},
-	{"text": "Énigme 4 - Je peux être craqué, fait, dit et joué. Que suis-je ?", "password": "4"},
-	{"text": "Énigme 5 - Je n'ai pas de vie, mais je peux mourir. Que suis-je ?", "password": "5"},
+	{"text": "I am a number which go up but never come down. What am I?", "password": "age"},
+	{"text": "I'm always in front of you but can't be seen or be touched. What am I?", "password": "future"},
+	{"text": "I have legs and you sit on me. What am I?", "password": "chair"},
+	{"text": "I'm yellow and I make people smile. What am I?", "password": "banana"},
+	{"text": "I provide warmth, and without me the plants die. What am I?", "password": "sun"},
 ]
 
 var selected_riddles: Array[Dictionary] = []
@@ -33,6 +35,7 @@ const PAGE_ROTATION_Y: float = PI / 2.0
 const PAGE_SCALE: Vector3 = Vector3(2, 2, 2)
 
 const MONSTER_SPAWN_POS: Vector3 = Vector3(-1.673, 3.715, -8.35)
+var MONSTER_SPAWN_RATE: float = 0.4
 const MONSTER_ROTATION_Y: float = deg_to_rad(0.0)
 const MONSTER_SCALE: Vector3 = Vector3(0.6, 0.6, 0.6)
 const MONSTER_MOVE_DISTANCE: float = 1.5
@@ -44,7 +47,7 @@ const KILLER_MONSTER_POS: Vector3 = Vector3(6, 0.402, -6.666)
 const DEAD_ZONE_TELEPORT_POS: Vector3 = Vector3(1.71, 2.076, -6.692)
 const DEAD_ZONE_PLAYER_ROT_Y_DEG: float = 90.0
 const DEAD_ZONE_CAMERA_ROT_X_DEG: float = -30.0
-const DEAD_ZONE_MESSAGE: String = "Did you really think you were going to go away like it? No. Now it’s my turn to live."
+const DEAD_ZONE_MESSAGE: String = "Did you really think you were going to go away like it? No. Not this time. Now IT'S MY TURN TO LIVE."
 
 var player: CharacterBody3D
 var camera: Camera3D
@@ -91,6 +94,7 @@ const INTERACTION_LAYER: int = 2
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("game_manager")
 	await get_tree().process_frame
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	_select_riddles()
@@ -268,7 +272,7 @@ func _setup_pause_menu():
 	vbox.add_child(spacer)
 
 	var continue_btn = Button.new()
-	continue_btn.text = "CONTINUER"
+	continue_btn.text = "CONTINUE"
 	continue_btn.custom_minimum_size = Vector2(250, 50)
 	continue_btn.flat = true
 	continue_btn.add_theme_font_size_override("font_size", 24)
@@ -279,7 +283,7 @@ func _setup_pause_menu():
 	vbox.add_child(continue_btn)
 
 	var quit_btn = Button.new()
-	quit_btn.text = "QUITTER"
+	quit_btn.text = "QUIT"
 	quit_btn.custom_minimum_size = Vector2(250, 50)
 	quit_btn.flat = true
 	quit_btn.add_theme_font_size_override("font_size", 24)
@@ -556,6 +560,7 @@ func _validate_password():
 func _show_outro():
 	text_overlay.visible = false
 	is_showing_outro = true
+	step_counter+=1
 	_show_text(outro_text)
 	_spawn_outro_monster()
 
@@ -626,7 +631,7 @@ func _on_monster_timer_timeout():
 		return
 
 	if monster == null:
-		if randf() < 0.5:
+		if randf() < MONSTER_SPAWN_RATE and step_counter != 0 and step_counter != 11 and step_counter != 12:
 			_spawn_monster()
 			monster_timer.wait_time = 5.0
 	else:
@@ -829,6 +834,9 @@ func _destroy_monster():
 	is_outro_monster = false
 	is_killer_monster = false
 
+func on_candle_extinguished():
+	MONSTER_SPAWN_RATE *= 1.1
+
 func _lock_player_controls(locked: bool):
 	is_player_frozen = locked
 	if player:
@@ -858,9 +866,13 @@ func _play_dead_zone_message() -> void:
 	var tween = create_tween()
 	tween.tween_property(bottom_message_label, "modulate:a", 1.0, 1.0)
 	tween.tween_interval(3.0)
-	tween.tween_callback(func(): bottom_message_label.visible = false)
+	tween.tween_callback(Callable(self, "_hide_bottom_message"))
 
 	await tween.finished
+
+func _hide_bottom_message():
+	if bottom_message_label:
+		bottom_message_label.visible = false
 
 func _start_killer_monster_rush():
 	if not monster:

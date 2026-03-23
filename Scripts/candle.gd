@@ -1,6 +1,6 @@
 extends Node3D
 
-@export var interval := 10.0
+@export var interval := 15.0
 @export var light_drop_per_state := 0.02
 @export var candle_base_path: String = "res://Assets/Candles/CandleState"
 @onready var light := $OmniLight3D	
@@ -9,6 +9,7 @@ var _timer := 0.0
 var _state: int = 1
 var _had_default: bool = true
 var _current: Node = null
+var _extinguish_notified: bool = false
 
 func _ready():
 	_current = get_child(0)
@@ -34,6 +35,9 @@ func _advance():
 		_load_state(_state)
 		return
 	if _state >= 16:
+		if not _extinguish_notified:
+			_extinguish_notified = true
+			_notify_game_manager_candle_extinguished()
 		light.visible = false
 		return
 	_state += 1
@@ -51,3 +55,8 @@ func _load_state(n: int):
 	_current = new_node
 	if light:
 		light.position.y -= light_drop_per_state
+
+func _notify_game_manager_candle_extinguished():
+	var gm = get_tree().get_first_node_in_group("game_manager")
+	if gm and gm.has_method("on_candle_extinguished"):
+		gm.on_candle_extinguished()
