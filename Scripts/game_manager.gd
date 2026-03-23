@@ -40,6 +40,11 @@ const MONSTER_COLLISION_LAYER: int = 3
 const MONSTER_COLLIDER_SIZE: Vector3 = Vector3(1.0, 2.0, 3.0)
 const MONSTER_DESTROY_LOOK_TIME: float = 0.25
 const OUTRO_MONSTER_POS: Vector3 = Vector3(-2.550, 3.600, -7.481)
+const KILLER_MONSTER_POS: Vector3 = Vector3(6, 0.402, -6.666)
+const DEAD_ZONE_TELEPORT_POS: Vector3 = Vector3(1.71, 2.076, -6.692)
+const DEAD_ZONE_PLAYER_ROT_Y_DEG: float = 90.0
+const DEAD_ZONE_CAMERA_ROT_X_DEG: float = -30.0
+const DEAD_ZONE_MESSAGE: String = "Did you really think you were going to go away like it? No. Now it’s my turn to live."
 
 var player: CharacterBody3D
 var camera: Camera3D
@@ -54,6 +59,7 @@ var is_dead: bool = false
 var monster_visible_timer: float = 0.0
 var monster_was_visible: bool = false
 var is_outro_monster: bool = false
+var is_killer_monster: bool = false
 
 var ui_layer: CanvasLayer
 var interaction_indicator: TextureRect
@@ -66,6 +72,8 @@ var validate_button: Button
 var input_container: HBoxContainer
 var error_label: Label
 
+var bottom_message_label: Label
+
 var death_overlay: ColorRect
 var death_label: Label
 var screamer: TextureRect
@@ -74,6 +82,8 @@ var pause_menu: ColorRect
 var is_paused: bool = false
 
 var current_target: Node3D = null
+
+var is_player_frozen: bool = false
 
 @export var interaction_distance: float = 2.5
 
@@ -92,6 +102,7 @@ func _ready():
 	_setup_book()
 	_spawn_pages()
 	_update_interactables()
+	_spawn_killer_monster()
 
 func _select_riddles():
 	var shuffled = possible_riddles.duplicate()
@@ -207,6 +218,19 @@ func _setup_ui():
 	error_label.add_theme_constant_override("shadow_offset_y", 3)
 	error_label.visible = false
 	ui_layer.add_child(error_label)
+
+	bottom_message_label = Label.new()
+	bottom_message_label.text = ""
+	bottom_message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bottom_message_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bottom_message_label.anchor_left = 0.0
+	bottom_message_label.anchor_right = 1.0
+	bottom_message_label.anchor_top = 0.85
+	bottom_message_label.anchor_bottom = 0.95
+	bottom_message_label.add_theme_font_size_override("font_size", 24)
+	bottom_message_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	bottom_message_label.visible = false
+	ui_layer.add_child(bottom_message_label)
 
 func _setup_pause_menu():
 	pause_menu = ColorRect.new()
@@ -413,6 +437,9 @@ func _can_interact_with(target: Node3D) -> bool:
 	return false
 
 func _input(event):
+	if is_player_frozen:
+		return
+
 	if is_text_displayed and event.is_action_pressed("ui_cancel"):
 		if is_showing_outro:
 			_close_outro()
@@ -576,10 +603,23 @@ func _game_completed():
 	if winning_zone and winning_zone is Area3D:
 		winning_zone.body_entered.connect(_on_winning_zone_entered)
 
+	var dead_zone = get_tree().get_first_node_in_group("dead_zone")
+	if not dead_zone:
+		var neighborhood = get_parent().get_node_or_null("neighborhood")
+		if neighborhood:
+			dead_zone = neighborhood.get_node_or_null("DeadZone")
+	if dead_zone and dead_zone is Area3D:
+		dead_zone.body_entered.connect(_on_dead_zone_entered)
+
 func _on_winning_zone_entered(body: Node3D):
 	if body == player or body.is_in_group("player"):
 		if is_outro_monster:
 			_destroy_monster()
+			_spawn_killer_monster()
+
+func _on_dead_zone_entered(body: Node3D):
+	if body == player or body.is_in_group("player"):
+		_start_dead_zone_sequence()
 
 func _on_monster_timer_timeout():
 	if not is_text_displayed or is_dead:
@@ -661,9 +701,47 @@ func _spawn_outro_monster():
 	monster_area.body_entered.connect(_on_monster_collision)
 
 	is_outro_monster = true
+	is_killer_monster = false
+
+func _spawn_killer_monster():
+	_destroy_monster()
+	var monster_scene = load("res://Assets/Characters/Monster/monster.glb")
+	if not monster_scene:
+		return
+
+	monster = monster_scene.instantiate()
+	monster.name = "KillerMonster"
+	monster.position = KILLER_MONSTER_POS
+	monster.rotation.y = deg_to_rad(-90.0)
+	monster.scale = MONSTER_SCALE
+	get_parent().add_child(monster)
+
+	var anim_player = monster.get_node_or_null("AnimationPlayer")
+	if anim_player:
+		if anim_player.has_animation("mixamo_com"):
+			anim_player.play("mixamo_com")
+			anim_player.get_animation("mixamo_com").loop_mode = Animation.LOOP_LINEAR
+
+	monster_area = Area3D.new()
+	monster_area.name = "MonsterArea"
+	monster_area.collision_layer = 1 << (MONSTER_COLLISION_LAYER - 1)
+	monster_area.collision_mask = 1
+
+	var collision = CollisionShape3D.new()
+	var shape = BoxShape3D.new()
+	shape.size = MONSTER_COLLIDER_SIZE
+	collision.shape = shape
+	collision.position.y = 1.0
+
+	monster_area.add_child(collision)
+	monster.add_child(monster_area)
+	monster_area.body_entered.connect(_on_monster_collision)
+
+	is_outro_monster = false
+	is_killer_monster = true
 
 func _move_monster():
-	if monster and not is_outro_monster:
+	if monster and not is_outro_monster and not is_killer_monster:
 		monster.position.z += MONSTER_MOVE_DISTANCE
 
 func _is_monster_in_camera_view() -> bool:
@@ -680,7 +758,7 @@ func _is_monster_in_camera_view() -> bool:
 	return dot > 0.3
 
 func _update_monster_visibility(delta: float):
-	if is_outro_monster:
+	if is_outro_monster or is_killer_monster:
 		monster_visible_timer = 0.0
 		monster_was_visible = false
 		return
@@ -734,7 +812,7 @@ func _is_node_in_monster_tree(node: Node) -> bool:
 	return false
 
 func _check_monster_visibility():
-	if is_outro_monster:
+	if is_outro_monster or is_killer_monster:
 		return
 
 	if monster and _is_monster_in_camera_view():
@@ -749,6 +827,67 @@ func _destroy_monster():
 		monster_area = null
 		monster_timer.wait_time = 3.0
 	is_outro_monster = false
+	is_killer_monster = false
+
+func _lock_player_controls(locked: bool):
+	is_player_frozen = locked
+	if player:
+		player.set_physics_process(not locked)
+	if camera:
+		camera.set_process_input(not locked)
+		camera.set_process(not locked)
+		camera.set_physics_process(not locked)
+
+func _teleport_player_to_dead_zone():
+	if not player:
+		return
+
+	player.global_position = DEAD_ZONE_TELEPORT_POS
+	player.rotation_degrees.y = DEAD_ZONE_PLAYER_ROT_Y_DEG
+	if camera:
+		camera.rotation_degrees.x = DEAD_ZONE_CAMERA_ROT_X_DEG
+
+func _play_dead_zone_message() -> void:
+	if not bottom_message_label:
+		return
+
+	bottom_message_label.text = DEAD_ZONE_MESSAGE
+	bottom_message_label.modulate.a = 0.0
+	bottom_message_label.visible = true
+
+	var tween = create_tween()
+	tween.tween_property(bottom_message_label, "modulate:a", 1.0, 1.0)
+	tween.tween_interval(3.0)
+	tween.tween_callback(func(): bottom_message_label.visible = false)
+
+	await tween.finished
+
+func _start_killer_monster_rush():
+	if not monster:
+		return
+
+	var target: Vector3
+	if camera:
+		target = camera.global_position
+	elif player:
+		target = player.global_position
+	else:
+		var forward = -monster.global_transform.basis.z
+		target = monster.global_position + forward * 5.0
+
+	monster.look_at(target, Vector3.UP)
+	monster.rotate_y(PI)
+	var tween = create_tween()
+	tween.tween_property(monster, "global_position", target, 0.25)
+
+func _start_dead_zone_sequence() -> void:
+	if is_dead:
+		return
+
+	_lock_player_controls(true)
+	_teleport_player_to_dead_zone()
+	await _play_dead_zone_message()
+	_start_killer_monster_rush()
 
 func _on_monster_collision(body: Node3D):
 	if is_dead:
