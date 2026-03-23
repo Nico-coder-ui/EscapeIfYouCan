@@ -7,11 +7,11 @@ var intro_text: String = "Texte d'introduction - Le début de l'histoire..."
 var outro_text: String = "Texte de fin - Vous avez réussi à résoudre toutes les énigmes..."
 
 var possible_riddles: Array[Dictionary] = [
-	{"text": "Énigme 1 - Je suis toujours devant vous mais ne peut jamais être vu. Que suis-je ?", "password": "avenir"},
-	{"text": "Énigme 2 - Plus je sèche, plus je suis mouillée. Que suis-je ?", "password": "serviette"},
-	{"text": "Énigme 3 - J'ai des villes, mais pas de maisons. J'ai des forêts, mais pas d'arbres. J'ai de l'eau, mais pas de poissons. Que suis-je ?", "password": "carte"},
-	{"text": "Énigme 4 - Je peux être craqué, fait, dit et joué. Que suis-je ?", "password": "blague"},
-	{"text": "Énigme 5 - Je n'ai pas de vie, mais je peux mourir. Que suis-je ?", "password": "pile"},
+	{"text": "Énigme 1 - Je suis toujours devant vous mais ne peut jamais être vu. Que suis-je ?", "password": "1"},
+	{"text": "Énigme 2 - Plus je sèche, plus je suis mouillée. Que suis-je ?", "password": "2"},
+	{"text": "Énigme 3 - J'ai des villes, mais pas de maisons. J'ai des forêts, mais pas d'arbres. J'ai de l'eau, mais pas de poissons. Que suis-je ?", "password": "3"},
+	{"text": "Énigme 4 - Je peux être craqué, fait, dit et joué. Que suis-je ?", "password": "4"},
+	{"text": "Énigme 5 - Je n'ai pas de vie, mais je peux mourir. Que suis-je ?", "password": "5"},
 ]
 
 var selected_riddles: Array[Dictionary] = []
@@ -37,6 +37,9 @@ const MONSTER_ROTATION_Y: float = deg_to_rad(0.0)
 const MONSTER_SCALE: Vector3 = Vector3(0.6, 0.6, 0.6)
 const MONSTER_MOVE_DISTANCE: float = 1.5
 const MONSTER_COLLISION_LAYER: int = 3
+const MONSTER_COLLIDER_SIZE: Vector3 = Vector3(1.0, 2.0, 3.0)
+const MONSTER_DESTROY_LOOK_TIME: float = 0.25
+const OUTRO_MONSTER_POS: Vector3 = Vector3(-2.550, 3.600, -7.481)
 
 var player: CharacterBody3D
 var camera: Camera3D
@@ -50,6 +53,7 @@ var monster_area: Area3D
 var is_dead: bool = false
 var monster_visible_timer: float = 0.0
 var monster_was_visible: bool = false
+var is_outro_monster: bool = false
 
 var ui_layer: CanvasLayer
 var interaction_indicator: TextureRect
@@ -355,10 +359,20 @@ func _update_interactables():
 			var page_step = (i * 2) + 1
 			pages[i].visible = (step_counter == page_step)
 
-func _process(_delta):
+func _process(delta):
 	if is_text_displayed or is_paused:
+		monster_visible_timer = 0.0
+		monster_was_visible = false
 		return
 	_check_interaction_target()
+	_update_monster_visibility(delta)
+
+func _physics_process(_delta):
+	if is_outro_monster and monster and player:
+		var target_pos = player.global_position
+		target_pos.y = monster.global_position.y
+		monster.look_at(target_pos, Vector3.UP)
+		monster.rotate_y(PI)
 
 func _check_interaction_target():
 	if not raycast:
@@ -424,7 +438,6 @@ func _close_outro():
 	is_showing_outro = false
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	monster_timer.stop()
-	_destroy_monster()
 	step_counter += 1
 	_game_completed()
 
@@ -517,6 +530,7 @@ func _show_outro():
 	text_overlay.visible = false
 	is_showing_outro = true
 	_show_text(outro_text)
+	_spawn_outro_monster()
 
 func _show_error():
 	input_field.text = ""
@@ -564,7 +578,8 @@ func _game_completed():
 
 func _on_winning_zone_entered(body: Node3D):
 	if body == player or body.is_in_group("player"):
-		get_tree().quit()
+		if is_outro_monster:
+			_destroy_monster()
 
 func _on_monster_timer_timeout():
 	if not is_text_displayed or is_dead:
@@ -589,6 +604,7 @@ func _spawn_monster():
 	monster.rotation.y = MONSTER_ROTATION_Y
 	monster.scale = MONSTER_SCALE
 	get_parent().add_child(monster)
+	is_outro_monster = false
 
 	var anim_player = monster.get_node_or_null("AnimationPlayer")
 	if anim_player:
@@ -603,7 +619,7 @@ func _spawn_monster():
 
 	var collision = CollisionShape3D.new()
 	var shape = BoxShape3D.new()
-	shape.size = Vector3(1.0, 2.0, 2.0)
+	shape.size = MONSTER_COLLIDER_SIZE
 	collision.shape = shape
 	collision.position.y = 1.0
 
@@ -611,8 +627,43 @@ func _spawn_monster():
 	monster.add_child(monster_area)
 	monster_area.body_entered.connect(_on_monster_collision)
 
+func _spawn_outro_monster():
+	_destroy_monster()
+	var monster_scene = load("res://Assets/Characters/Monster/monster.glb")
+	if not monster_scene:
+		return
+
+	monster = monster_scene.instantiate()
+	monster.name = "OutroMonster"
+	monster.position = OUTRO_MONSTER_POS
+	monster.scale = MONSTER_SCALE
+	get_parent().add_child(monster)
+
+	var anim_player = monster.get_node_or_null("AnimationPlayer")
+	if anim_player:
+		if anim_player.has_animation("mixamo_com"):
+			anim_player.play("mixamo_com")
+			anim_player.get_animation("mixamo_com").loop_mode = Animation.LOOP_LINEAR
+
+	monster_area = Area3D.new()
+	monster_area.name = "MonsterArea"
+	monster_area.collision_layer = 1 << (MONSTER_COLLISION_LAYER - 1)
+	monster_area.collision_mask = 1
+
+	var collision = CollisionShape3D.new()
+	var shape = BoxShape3D.new()
+	shape.size = MONSTER_COLLIDER_SIZE
+	collision.shape = shape
+	collision.position.y = 1.0
+
+	monster_area.add_child(collision)
+	monster.add_child(monster_area)
+	monster_area.body_entered.connect(_on_monster_collision)
+
+	is_outro_monster = true
+
 func _move_monster():
-	if monster:
+	if monster and not is_outro_monster:
 		monster.position.z += MONSTER_MOVE_DISTANCE
 
 func _is_monster_in_camera_view() -> bool:
@@ -628,7 +679,64 @@ func _is_monster_in_camera_view() -> bool:
 
 	return dot > 0.3
 
+func _update_monster_visibility(delta: float):
+	if is_outro_monster:
+		monster_visible_timer = 0.0
+		monster_was_visible = false
+		return
+
+	if not monster or is_dead:
+		monster_visible_timer = 0.0
+		monster_was_visible = false
+		return
+
+	var is_visible_now = _is_monster_in_camera_view() and _has_line_of_sight_to_monster()
+	if is_visible_now:
+		monster_visible_timer += delta
+		monster_was_visible = true
+		if monster_visible_timer >= MONSTER_DESTROY_LOOK_TIME:
+			_destroy_monster()
+	else:
+		monster_visible_timer = 0.0
+		monster_was_visible = false
+
+func _has_line_of_sight_to_monster() -> bool:
+	if not monster or not camera:
+		return false
+
+	var from = camera.global_position
+	var to = monster.global_position + Vector3(0, 1, 0)
+	var query = PhysicsRayQueryParameters3D.create(from, to)
+	query.collide_with_areas = true
+	if player:
+		query.exclude = [player.get_rid()]
+
+	var world := get_viewport().world_3d
+	if world == null:
+		return false
+
+	var result = world.direct_space_state.intersect_ray(query)
+	if result.is_empty():
+		return false
+
+	var collider = result.get("collider")
+	if collider is Node:
+		return _is_node_in_monster_tree(collider)
+
+	return false
+
+func _is_node_in_monster_tree(node: Node) -> bool:
+	var current = node
+	while current:
+		if current == monster:
+			return true
+		current = current.get_parent()
+	return false
+
 func _check_monster_visibility():
+	if is_outro_monster:
+		return
+
 	if monster and _is_monster_in_camera_view():
 		await get_tree().create_timer(0.5).timeout
 		if monster and _is_monster_in_camera_view():
@@ -640,6 +748,7 @@ func _destroy_monster():
 		monster = null
 		monster_area = null
 		monster_timer.wait_time = 3.0
+	is_outro_monster = false
 
 func _on_monster_collision(body: Node3D):
 	if is_dead:
