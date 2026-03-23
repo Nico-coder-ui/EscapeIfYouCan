@@ -35,7 +35,7 @@ const PAGE_ROTATION_Y: float = PI / 2.0
 const PAGE_SCALE: Vector3 = Vector3(2, 2, 2)
 
 const MONSTER_SPAWN_POS: Vector3 = Vector3(-1.673, 3.715, -8.35)
-var MONSTER_SPAWN_RATE: float = 0.4
+var MONSTER_SPAWN_RATE: float = 0.3
 const MONSTER_ROTATION_Y: float = deg_to_rad(0.0)
 const MONSTER_SCALE: Vector3 = Vector3(0.6, 0.6, 0.6)
 const MONSTER_MOVE_DISTANCE: float = 1.5
@@ -75,11 +75,20 @@ var validate_button: Button
 var input_container: HBoxContainer
 var error_label: Label
 
+var input_hint_label: Label
+
 var bottom_message_label: Label
 
 var death_overlay: ColorRect
 var death_label: Label
 var screamer: TextureRect
+
+var screamer_sound: AudioStreamPlayer
+
+var ambient_sfx_timer: Timer
+var ambient_sfx_players: Array[AudioStreamPlayer] = []
+
+var monster_spawn_sound: AudioStreamPlayer
 
 var pause_menu: ColorRect
 var is_paused: bool = false
@@ -101,12 +110,12 @@ func _ready():
 	_setup_references()
 	_setup_ui()
 	_setup_death_screen()
+	_setup_ambient_sounds()
 	_setup_pause_menu()
 	_setup_monster_timer()
 	_setup_book()
 	_spawn_pages()
 	_update_interactables()
-	_spawn_killer_monster()
 
 func _select_riddles():
 	var shuffled = possible_riddles.duplicate()
@@ -207,8 +216,19 @@ func _setup_ui():
 	validate_button.pressed.connect(_on_validate_pressed)
 	input_container.add_child(validate_button)
 
+	input_hint_label = Label.new()
+	input_hint_label.text = "Type a single word in lowercase."
+	input_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	input_hint_label.anchor_left = 0.3
+	input_hint_label.anchor_right = 0.7
+	input_hint_label.anchor_top = 0.85
+	input_hint_label.anchor_bottom = 0.9
+	input_hint_label.visible = false
+	input_hint_label.add_theme_font_size_override("font_size", 18)
+	text_overlay.add_child(input_hint_label)
+
 	error_label = Label.new()
-	error_label.text = "LE MONSTRE SE RAPPROCHE..."
+	error_label.text = "MONSTER IS COMING CLOSER..."
 	error_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	error_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	error_label.anchor_left = 0.0
@@ -322,6 +342,56 @@ func _setup_death_screen():
 	death_label.add_theme_font_size_override("font_size", 48)
 	death_label.add_theme_color_override("font_color", Color(0.8, 0.1, 0.1, 1))
 	death_overlay.add_child(death_label)
+
+	screamer_sound = AudioStreamPlayer.new()
+	screamer_sound.name = "ScreamerSound"
+	screamer_sound.stream = load("res://Sounds/scary-scream.mp3")
+	add_child(screamer_sound)
+
+func _setup_ambient_sounds():
+	ambient_sfx_timer = Timer.new()
+	ambient_sfx_timer.name = "AmbientSfxTimer"
+	ambient_sfx_timer.one_shot = true
+	ambient_sfx_timer.timeout.connect(_on_ambient_sfx_timeout)
+	add_child(ambient_sfx_timer)
+
+	var sound_paths = [
+		"res://Sounds/footsteps.mp3",
+		"res://Sounds/breath-random.mp3",
+		"res://Sounds/scary-laugh.mp3",
+	]
+
+	for path in sound_paths:
+		var stream = load(path)
+		if stream:
+			var player = AudioStreamPlayer.new()
+			player.stream = stream
+			player.volume_db = -6.0
+			add_child(player)
+			ambient_sfx_players.append(player)
+
+	var spawn_stream = load("res://Sounds/breath-monster.mp3")
+	if spawn_stream:
+		monster_spawn_sound = AudioStreamPlayer.new()
+		monster_spawn_sound.stream = spawn_stream
+		monster_spawn_sound.volume_db = -4.0
+		add_child(monster_spawn_sound)
+
+	_reset_ambient_sfx_timer()
+
+func _reset_ambient_sfx_timer():
+	if not ambient_sfx_timer:
+		return
+	ambient_sfx_timer.wait_time = randf_range(10.0, 20.0)
+	ambient_sfx_timer.start()
+
+func _on_ambient_sfx_timeout():
+	if ambient_sfx_players.size() > 0:
+		var index = randi() % ambient_sfx_players.size()
+		var player = ambient_sfx_players[index]
+		if player:
+			player.play()
+	_reset_ambient_sfx_timer()
 
 func _setup_monster_timer():
 	monster_timer = Timer.new()
@@ -528,9 +598,13 @@ func _show_text(text: String):
 
 	if step_counter == 0 or is_showing_outro:
 		input_container.visible = false
+		if input_hint_label:
+			input_hint_label.visible = false
 	else:
 		input_container.visible = true
-		input_field.grab_focus()
+		if input_hint_label:
+			input_hint_label.visible = true
+		input_field.call_deferred("grab_focus")
 
 	if not is_showing_outro:
 		monster_timer.start()
@@ -568,6 +642,7 @@ func _show_error():
 	input_field.text = ""
 	error_label.modulate.a = 0.0
 	error_label.visible = true
+	on_candle_extinguished()
 
 	var tween = create_tween()
 	tween.tween_property(error_label, "modulate:a", 1.0, 1.0)
@@ -629,13 +704,15 @@ func _on_dead_zone_entered(body: Node3D):
 func _on_monster_timer_timeout():
 	if not is_text_displayed or is_dead:
 		return
-
 	if monster == null:
-		if randf() < MONSTER_SPAWN_RATE and step_counter != 0 and step_counter != 11 and step_counter != 12:
+		if step_counter >= 2 and step_counter <= 10 and step_counter % 2 == 0 and randf() < MONSTER_SPAWN_RATE:
+			print("Spawn")
 			_spawn_monster()
 			monster_timer.wait_time = 5.0
+			return
 	else:
 		if randf() < 0.7:
+			print("Walk")
 			_move_monster()
 
 func _spawn_monster():
@@ -671,6 +748,9 @@ func _spawn_monster():
 	monster_area.add_child(collision)
 	monster.add_child(monster_area)
 	monster_area.body_entered.connect(_on_monster_collision)
+
+	if monster_spawn_sound:
+		monster_spawn_sound.play()
 
 func _spawn_outro_monster():
 	_destroy_monster()
@@ -919,6 +999,8 @@ func _player_death():
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 	screamer.visible = true
+	if screamer_sound:
+		screamer_sound.play()
 
 	await get_tree().create_timer(1.0).timeout
 

@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://dh8k2m5n7p3q1"]
 
 [ext_resource type="Script" uid="uid://diynho1cokl4j" path="res://Scripts/main_menu.gd" id="1_menu"]
+[ext_resource type="AudioStream" path="res://Sounds/Lavender.mp3" id="2_music"]
 
 [node name="MainMenu" type="Control" unique_id=753607594]
 layout_mode = 3
@@ -87,3 +88,8 @@ autostart = true
 [node name="AmbientTimer" type="Timer" parent="." unique_id=1619649416]
 wait_time = 3.0
 autostart = true
+
+[node name="Music" type="AudioStreamPlayer" parent="." unique_id=1900000000]
+stream = ExtResource("2_music")
+autoplay = true
+volume_db = -6.0

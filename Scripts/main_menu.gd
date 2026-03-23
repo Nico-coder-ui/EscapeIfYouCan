@@ -6,6 +6,7 @@ extends Control
 @onready var flicker_timer: Timer = $FlickerTimer
 @onready var ambient_timer: Timer = $AmbientTimer
 @onready var vignette: ColorRect = $VignetteOverlay
+@onready var music_player: AudioStreamPlayer = $Music
 
 var target_vignette_alpha: float = 0.0
 
@@ -15,6 +16,7 @@ func _ready():
 	quit_button.pressed.connect(_on_quit_pressed)
 	flicker_timer.timeout.connect(_on_flicker)
 	ambient_timer.timeout.connect(_on_ambient_event)
+	music_player.finished.connect(_on_music_finished)
 
 func _process(delta):
 	var current_alpha = vignette.color.a
@@ -52,3 +54,7 @@ func _on_ambient_event():
 			title.position.x -= offset
 
 	ambient_timer.wait_time = randf_range(2.0, 5.0)
+
+func _on_music_finished():
+	if music_player:
+		music_player.play()
